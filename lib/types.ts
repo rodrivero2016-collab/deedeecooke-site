@@ -14,6 +14,7 @@ export type QueueItem = {
   needs_from_dee_dee: string | null;
   her_best_line: string | null;
   notes: string | null;
+  image_data: string | null;
   created_at: string;
 };
 

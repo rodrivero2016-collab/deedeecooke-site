@@ -5,6 +5,8 @@ import type { VoiceCaptionResult } from "@/lib/types";
 
 const PLATFORM_OPTIONS = ["Facebook", "Instagram", "TikTok Hook", "Email"];
 
+type ImageState = { loading: boolean; dataUrl?: string; error?: string };
+
 export default function VoiceCaptionForm({ onSaved }: { onSaved: () => void }) {
   const [idea, setIdea] = useState("");
   const [context, setContext] = useState("");
@@ -14,6 +16,7 @@ export default function VoiceCaptionForm({ onSaved }: { onSaved: () => void }) {
   const [error, setError] = useState("");
   const [result, setResult] = useState<VoiceCaptionResult | null>(null);
   const [savedIndexes, setSavedIndexes] = useState<number[]>([]);
+  const [images, setImages] = useState<Record<number, ImageState>>({});
 
   function togglePlatform(p: string) {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -25,6 +28,7 @@ export default function VoiceCaptionForm({ onSaved }: { onSaved: () => void }) {
     setError("");
     setResult(null);
     setSavedIndexes([]);
+    setImages({});
     try {
       const res = await fetch("/api/agent/voice-caption", {
         method: "POST",
@@ -38,6 +42,24 @@ export default function VoiceCaptionForm({ onSaved }: { onSaved: () => void }) {
       setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generateImageFor(index: number) {
+    if (!result) return;
+    const item = result.items[index];
+    setImages((prev) => ({ ...prev, [index]: { loading: true } }));
+    try {
+      const res = await fetch("/api/agent/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "post-image", text: item.content }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image generation failed");
+      setImages((prev) => ({ ...prev, [index]: { loading: false, dataUrl: data.dataUrl } }));
+    } catch (err: any) {
+      setImages((prev) => ({ ...prev, [index]: { loading: false, error: err.message } }));
     }
   }
 
@@ -56,6 +78,7 @@ export default function VoiceCaptionForm({ onSaved }: { onSaved: () => void }) {
         body: item.content,
         why_this_angle: item.why,
         needs_from_dee_dee: result.needs_from_dee_dee || null,
+        image_data: images[index]?.dataUrl || null,
       }),
     });
     setSavedIndexes((prev) => [...prev, index]);
@@ -148,26 +171,46 @@ export default function VoiceCaptionForm({ onSaved }: { onSaved: () => void }) {
                 <p className="mt-1 text-wine-deep/70">Needs from Dee Dee: {result.needs_from_dee_dee}</p>
               )}
             </div>
-            {result.items.map((item, i) => (
-              <div key={i} className="rounded-xl border border-wine/10 bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <span className="rounded-full bg-wine-deep px-3 py-1 text-xs font-medium text-cream">
-                    {item.platform}
-                  </span>
-                  <button
-                    onClick={() => saveItem(i)}
-                    disabled={savedIndexes.includes(i)}
-                    className="rounded-full border border-wine/20 px-3 py-1 text-xs font-medium text-wine-deep transition hover:border-wine disabled:opacity-50"
-                  >
-                    {savedIndexes.includes(i) ? "Saved to queue" : "Save to queue"}
-                  </button>
+            {result.items.map((item, i) => {
+              const imgState = images[i];
+              return (
+                <div key={i} className="rounded-xl border border-wine/10 bg-white p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-wine-deep px-3 py-1 text-xs font-medium text-cream">
+                      {item.platform}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => generateImageFor(i)}
+                        disabled={imgState?.loading}
+                        className="rounded-full border border-wine/20 px-3 py-1 text-xs font-medium text-wine-deep transition hover:border-wine disabled:opacity-50"
+                      >
+                        {imgState?.loading ? "Generating image..." : imgState?.dataUrl ? "Regenerate image" : "Generate image"}
+                      </button>
+                      <button
+                        onClick={() => saveItem(i)}
+                        disabled={savedIndexes.includes(i)}
+                        className="rounded-full border border-wine/20 px-3 py-1 text-xs font-medium text-wine-deep transition hover:border-wine disabled:opacity-50"
+                      >
+                        {savedIndexes.includes(i) ? "Saved to queue" : "Save to queue"}
+                      </button>
+                    </div>
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-wine-deep/90">
+                    {item.content}
+                  </p>
+                  <p className="mt-2 text-xs italic text-wine-deep/50">{item.why}</p>
+                  {imgState?.error && <p className="mt-2 text-xs text-red-600">{imgState.error}</p>}
+                  {imgState?.dataUrl && (
+                    <img
+                      src={imgState.dataUrl}
+                      alt="Generated visual for this post"
+                      className="mt-3 w-full max-w-sm rounded-lg border border-wine/10"
+                    />
+                  )}
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-wine-deep/90">
-                  {item.content}
-                </p>
-                <p className="mt-2 text-xs italic text-wine-deep/50">{item.why}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

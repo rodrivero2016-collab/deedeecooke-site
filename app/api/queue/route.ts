@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       why_this_angle,
       needs_from_dee_dee,
       her_best_line,
+      image_data,
     } = body || {};
 
     if (!name || !platform || !content_type || !source || !content) {
@@ -36,8 +37,8 @@ export async function POST(request: NextRequest) {
     const id = crypto.randomUUID();
     db.prepare(
       `INSERT INTO queue_items
-        (id, name, status, platform, content_type, source, song, preview, body, why_this_angle, needs_from_dee_dee, her_best_line)
-       VALUES (@id, @name, @status, @platform, @content_type, @source, @song, @preview, @body, @why_this_angle, @needs_from_dee_dee, @her_best_line)`
+        (id, name, status, platform, content_type, source, song, preview, body, why_this_angle, needs_from_dee_dee, her_best_line, image_data)
+       VALUES (@id, @name, @status, @platform, @content_type, @source, @song, @preview, @body, @why_this_angle, @needs_from_dee_dee, @her_best_line, @image_data)`
     ).run({
       id,
       name,
@@ -51,6 +52,7 @@ export async function POST(request: NextRequest) {
       why_this_angle: why_this_angle || null,
       needs_from_dee_dee: needs_from_dee_dee || null,
       her_best_line: her_best_line || null,
+      image_data: image_data || null,
     });
 
     const row = db.prepare("SELECT * FROM queue_items WHERE id = ?").get(id);

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import type { SongStoryResult } from "@/lib/types";
 
+type ImageState = { loading: boolean; dataUrl?: string; error?: string };
+
 export default function SongStoryForm({ onSaved }: { onSaved: () => void }) {
   const [song, setSong] = useState("");
   const [transcript, setTranscript] = useState("");
@@ -11,6 +13,7 @@ export default function SongStoryForm({ onSaved }: { onSaved: () => void }) {
   const [error, setError] = useState("");
   const [result, setResult] = useState<SongStoryResult | null>(null);
   const [savedIndexes, setSavedIndexes] = useState<number[]>([]);
+  const [images, setImages] = useState<Record<number, ImageState>>({});
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
@@ -18,6 +21,7 @@ export default function SongStoryForm({ onSaved }: { onSaved: () => void }) {
     setError("");
     setResult(null);
     setSavedIndexes([]);
+    setImages({});
     try {
       const res = await fetch("/api/agent/song-story", {
         method: "POST",
@@ -31,6 +35,29 @@ export default function SongStoryForm({ onSaved }: { onSaved: () => void }) {
       setError(err.message || "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generateImageFor(index: number) {
+    if (!result) return;
+    const item = result.items[index];
+    const isLyricGraphic = item.content_type === "Lyric Graphic";
+    setImages((prev) => ({ ...prev, [index]: { loading: true } }));
+    try {
+      const res = await fetch("/api/agent/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: isLyricGraphic ? "lyric-graphic" : "post-image",
+          text: item.content,
+          song: result.song,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Image generation failed");
+      setImages((prev) => ({ ...prev, [index]: { loading: false, dataUrl: data.dataUrl } }));
+    } catch (err: any) {
+      setImages((prev) => ({ ...prev, [index]: { loading: false, error: err.message } }));
     }
   }
 
@@ -50,6 +77,7 @@ export default function SongStoryForm({ onSaved }: { onSaved: () => void }) {
         why_this_angle: item.why,
         needs_from_dee_dee: result.needs_from_dee_dee || null,
         her_best_line: result.her_best_line || null,
+        image_data: images[index]?.dataUrl || null,
       }),
     });
     setSavedIndexes((prev) => [...prev, index]);
@@ -128,31 +156,51 @@ export default function SongStoryForm({ onSaved }: { onSaved: () => void }) {
                 <p className="mt-1 text-wine-deep/70">Needs from Dee Dee: {result.needs_from_dee_dee}</p>
               )}
             </div>
-            {result.items.map((item, i) => (
-              <div key={i} className="rounded-xl border border-wine/10 bg-white p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-wine-deep px-3 py-1 text-xs font-medium text-cream">
-                      {item.platform}
-                    </span>
-                    <span className="rounded-full border border-wine/20 px-3 py-1 text-xs text-wine-deep/70">
-                      {item.content_type}
-                    </span>
+            {result.items.map((item, i) => {
+              const imgState = images[i];
+              return (
+                <div key={i} className="rounded-xl border border-wine/10 bg-white p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="rounded-full bg-wine-deep px-3 py-1 text-xs font-medium text-cream">
+                        {item.platform}
+                      </span>
+                      <span className="rounded-full border border-wine/20 px-3 py-1 text-xs text-wine-deep/70">
+                        {item.content_type}
+                      </span>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        onClick={() => generateImageFor(i)}
+                        disabled={imgState?.loading}
+                        className="rounded-full border border-wine/20 px-3 py-1 text-xs font-medium text-wine-deep transition hover:border-wine disabled:opacity-50"
+                      >
+                        {imgState?.loading ? "Generating image..." : imgState?.dataUrl ? "Regenerate image" : "Generate image"}
+                      </button>
+                      <button
+                        onClick={() => saveItem(i)}
+                        disabled={savedIndexes.includes(i)}
+                        className="rounded-full border border-wine/20 px-3 py-1 text-xs font-medium text-wine-deep transition hover:border-wine disabled:opacity-50"
+                      >
+                        {savedIndexes.includes(i) ? "Saved" : "Save to queue"}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => saveItem(i)}
-                    disabled={savedIndexes.includes(i)}
-                    className="shrink-0 rounded-full border border-wine/20 px-3 py-1 text-xs font-medium text-wine-deep transition hover:border-wine disabled:opacity-50"
-                  >
-                    {savedIndexes.includes(i) ? "Saved" : "Save to queue"}
-                  </button>
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-wine-deep/90">
+                    {item.content}
+                  </p>
+                  <p className="mt-2 text-xs italic text-wine-deep/50">{item.why}</p>
+                  {imgState?.error && <p className="mt-2 text-xs text-red-600">{imgState.error}</p>}
+                  {imgState?.dataUrl && (
+                    <img
+                      src={imgState.dataUrl}
+                      alt={item.content_type === "Lyric Graphic" ? "Generated lyric graphic" : "Generated visual for this post"}
+                      className="mt-3 w-full max-w-sm rounded-lg border border-wine/10"
+                    />
+                  )}
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-wine-deep/90">
-                  {item.content}
-                </p>
-                <p className="mt-2 text-xs italic text-wine-deep/50">{item.why}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

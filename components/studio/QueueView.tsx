@@ -123,6 +123,13 @@ export default function QueueView({ refreshKey }: { refreshKey: number }) {
                 <p className="whitespace-pre-wrap rounded-lg bg-cream p-3 text-sm text-wine-deep/90">
                   {item.body}
                 </p>
+                {item.image_data && (
+                  <img
+                    src={item.image_data}
+                    alt="Generated visual for this post"
+                    className="w-full max-w-sm rounded-lg border border-wine/10"
+                  />
+                )}
                 {item.why_this_angle && (
                   <p className="text-xs italic text-wine-deep/50">Why: {item.why_this_angle}</p>
                 )}

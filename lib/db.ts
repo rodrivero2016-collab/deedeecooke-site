@@ -46,6 +46,7 @@ export function getDb(): Database.Database {
       needs_from_dee_dee TEXT,
       her_best_line TEXT,
       notes TEXT,
+      image_data TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -64,6 +65,13 @@ export function getDb(): Database.Database {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Lightweight migration for databases created before image_data existed.
+  try {
+    db.exec("ALTER TABLE queue_items ADD COLUMN image_data TEXT");
+  } catch {
+    // Column already exists — fine.
+  }
 
   _db = db;
   return db;
