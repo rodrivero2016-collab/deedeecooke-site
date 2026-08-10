@@ -17,6 +17,9 @@ export function SiteNav() {
           <Link href="/booking" className="hover:text-gold-light transition-colors">
             Booking &amp; Contact
           </Link>
+          <Link href="/studio/login" className="hover:text-gold-light transition-colors">
+            Studio
+          </Link>
         </div>
       </nav>
     </header>
