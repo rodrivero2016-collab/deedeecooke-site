@@ -184,12 +184,41 @@ export type SongStoryInput = {
   notes?: string;
 };
 
+// Claude is instructed to return raw JSON, but real-world output can still
+// have small formatting slips (a trailing comma, a code fence, a response
+// that got cut off mid-array if it ran long). This tries a straight parse
+// first, then a couple of cheap repairs before giving up.
 function extractJson(text: string): any {
   const trimmed = text.trim().replace(/^```(json)?/i, "").replace(/```$/, "").trim();
   const start = trimmed.indexOf("{");
   const end = trimmed.lastIndexOf("}");
-  if (start === -1 || end === -1) throw new Error("Model did not return JSON");
-  return JSON.parse(trimmed.slice(start, end + 1));
+  if (start === -1) throw new Error("Model did not return JSON — try regenerating.");
+
+  const candidate = end !== -1 ? trimmed.slice(start, end + 1) : trimmed.slice(start);
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    // Repair attempt 1: strip trailing commas before a closing bracket/brace,
+    // a common small mistake ("...}, ]" or "...\", }").
+    const noTrailingCommas = candidate.replace(/,(\s*[}\]])/g, "$1");
+    try {
+      return JSON.parse(noTrailingCommas);
+    } catch {
+      // Repair attempt 2: the response may have been cut off before it
+      // finished. Trim back to the last complete top-level array item
+      // (the last "}," at depth 2, i.e. the end of a finished object inside
+      // "items": [...]) and close out the JSON structure manually.
+      const lastCompleteItem = noTrailingCommas.lastIndexOf("},");
+      if (lastCompleteItem === -1) {
+        throw new Error(
+          "The response was cut off before it finished — try again, or shorten the request (fewer platforms at once)."
+        );
+      }
+      const salvaged = noTrailingCommas.slice(0, lastCompleteItem + 1) + "]}";
+      return JSON.parse(salvaged);
+    }
+  }
 }
 
 export async function runVoiceCaptionAgent(input: VoiceCaptionInput) {
@@ -200,7 +229,7 @@ SONG: ${input.song || ""}`;
 
   const response = await client.messages.create({
     model: "claude-sonnet-5",
-    max_tokens: 2500,
+    max_tokens: 4096,
     system: VOICE_CAPTION_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
   });
