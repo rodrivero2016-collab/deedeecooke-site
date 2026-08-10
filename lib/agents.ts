@@ -201,7 +201,6 @@ SONG: ${input.song || ""}`;
   const response = await client.messages.create({
     model: "claude-sonnet-5",
     max_tokens: 2500,
-    temperature: 0.9,
     system: VOICE_CAPTION_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
   });
@@ -225,7 +224,6 @@ ADDITIONAL NOTES: ${input.notes || ""}`;
   const response = await client.messages.create({
     model: "claude-opus-5",
     max_tokens: 4000,
-    temperature: 0.7,
     system: SONG_STORY_SYSTEM_PROMPT,
     messages: [{ role: "user", content: userMessage }],
   });

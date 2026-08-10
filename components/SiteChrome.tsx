@@ -8,6 +8,9 @@ export function SiteNav() {
           Dee Dee Cooke
         </Link>
         <div className="flex items-center gap-6 text-sm">
+          <Link href="/studio/login" className="hover:text-gold-light transition-colors">
+            Studio
+          </Link>
           <Link href="/#bio" className="hover:text-gold-light transition-colors hidden sm:inline">
             Bio
           </Link>
